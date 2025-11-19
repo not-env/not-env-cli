@@ -1,0 +1,229 @@
+package main
+
+import (
+	"fmt"
+	"os"
+
+	"github.com/spf13/cobra"
+
+	"not-env-cli/internal/commands"
+)
+
+var rootCmd = &cobra.Command{
+	Use:   "not-env",
+	Short: "not-env CLI - Manage environment variables",
+	Long:  "not-env is a CLI tool for managing environment variables stored in not-env-backend",
+}
+
+var loginCmd = &cobra.Command{
+	Use:   "login",
+	Short: "Login to not-env backend",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.Login()
+	},
+}
+
+var logoutCmd = &cobra.Command{
+	Use:   "logout",
+	Short: "Logout from not-env backend",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.Logout()
+	},
+}
+
+var envCmd = &cobra.Command{
+	Use:   "env",
+	Short: "Manage environments",
+}
+
+var envCreateCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a new environment",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name, _ := cmd.Flags().GetString("name")
+		description, _ := cmd.Flags().GetString("description")
+
+		if name == "" {
+			return fmt.Errorf("--name is required")
+		}
+
+		return commands.EnvCreate(name, description)
+	},
+}
+
+var envListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all environments",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.EnvList()
+	},
+}
+
+var envDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete an environment",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		envID, _ := cmd.Flags().GetInt64("id")
+		if envID == 0 {
+			return fmt.Errorf("--id is required")
+		}
+		return commands.EnvDelete(envID)
+	},
+}
+
+var envImportCmd = &cobra.Command{
+	Use:   "import",
+	Short: "Import variables from a .env file",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name, _ := cmd.Flags().GetString("name")
+		description, _ := cmd.Flags().GetString("description")
+		filePath, _ := cmd.Flags().GetString("file")
+		overwrite, _ := cmd.Flags().GetBool("overwrite")
+
+		if name == "" {
+			return fmt.Errorf("--name is required")
+		}
+		if filePath == "" {
+			return fmt.Errorf("--file is required")
+		}
+
+		return commands.EnvImport(name, description, filePath, overwrite)
+	},
+}
+
+var envShowCmd = &cobra.Command{
+	Use:   "show",
+	Short: "Show current environment metadata",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.EnvShow()
+	},
+}
+
+var envUpdateCmd = &cobra.Command{
+	Use:   "update",
+	Short: "Update environment metadata",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name, _ := cmd.Flags().GetString("name")
+		description, _ := cmd.Flags().GetString("description")
+
+		var namePtr, descPtr *string
+		if name != "" {
+			namePtr = &name
+		}
+		if description != "" {
+			descPtr = &description
+		}
+
+		if namePtr == nil && descPtr == nil {
+			return fmt.Errorf("at least one of --name or --description is required")
+		}
+
+		return commands.EnvUpdate(namePtr, descPtr)
+	},
+}
+
+var envKeysCmd = &cobra.Command{
+	Use:   "keys",
+	Short: "Show environment API keys",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.EnvKeys()
+	},
+}
+
+var envSetCmd = &cobra.Command{
+	Use:   "set",
+	Short: "Print export commands for all variables",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.EnvSet()
+	},
+}
+
+var envClearCmd = &cobra.Command{
+	Use:   "clear",
+	Short: "Print unset commands for all variables",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.EnvClear()
+	},
+}
+
+var varCmd = &cobra.Command{
+	Use:   "var",
+	Short: "Manage variables",
+}
+
+var varListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all variables",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.VarList()
+	},
+}
+
+var varGetCmd = &cobra.Command{
+	Use:   "get",
+	Short: "Get a variable value",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.VarGet(args[0])
+	},
+}
+
+var varSetCmd = &cobra.Command{
+	Use:   "set",
+	Short: "Set a variable value",
+	Args:  cobra.ExactArgs(2),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.VarSet(args[0], args[1])
+	},
+}
+
+var varDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "Delete a variable",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.VarDelete(args[0])
+	},
+}
+
+func init() {
+	// Login/logout
+	rootCmd.AddCommand(loginCmd)
+	rootCmd.AddCommand(logoutCmd)
+
+	// Environment commands
+	rootCmd.AddCommand(envCmd)
+	envCmd.AddCommand(envCreateCmd)
+	envCmd.AddCommand(envListCmd)
+	envCmd.AddCommand(envDeleteCmd)
+	envCmd.AddCommand(envImportCmd)
+	envCmd.AddCommand(envShowCmd)
+	envCmd.AddCommand(envUpdateCmd)
+	envCmd.AddCommand(envKeysCmd)
+	envCmd.AddCommand(envSetCmd)
+	envCmd.AddCommand(envClearCmd)
+
+	envCreateCmd.Flags().String("name", "", "Environment name")
+	envCreateCmd.Flags().String("description", "", "Environment description")
+	envDeleteCmd.Flags().Int64("id", 0, "Environment ID")
+	envImportCmd.Flags().String("name", "", "Environment name")
+	envImportCmd.Flags().String("description", "", "Environment description")
+	envImportCmd.Flags().String("file", "", "Path to .env file")
+	envImportCmd.Flags().Bool("overwrite", false, "Overwrite existing environment")
+	envUpdateCmd.Flags().String("name", "", "New environment name")
+	envUpdateCmd.Flags().String("description", "", "New environment description")
+
+	// Variable commands
+	rootCmd.AddCommand(varCmd)
+	varCmd.AddCommand(varListCmd)
+	varCmd.AddCommand(varGetCmd)
+	varCmd.AddCommand(varSetCmd)
+	varCmd.AddCommand(varDeleteCmd)
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+}
