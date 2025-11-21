@@ -4,14 +4,31 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 
 	"not-env-cli/internal/client"
 	"not-env-cli/internal/config"
 )
 
+// validateEnvironmentName validates an environment name
+func validateEnvironmentName(name string) error {
+	if name == "" {
+		return fmt.Errorf("environment name cannot be empty")
+	}
+	// Allow alphanumeric, dashes, underscores
+	matched, _ := regexp.MatchString("^[a-zA-Z0-9_-]+$", name)
+	if !matched {
+		return fmt.Errorf("environment name must be alphanumeric with dashes/underscores only")
+	}
+	return nil
+}
+
 // EnvCreate creates a new environment
 func EnvCreate(name, description string) error {
+	if err := validateEnvironmentName(name); err != nil {
+		return err
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -133,8 +150,18 @@ func EnvDelete(envID int64) error {
 	return nil
 }
 
-// EnvImport imports variables from a .env file
+// EnvImport imports variables from a .env file.
+// Flow:
+//  1. Parses .env file into key-value pairs
+//  2. Creates environment via API (or uses existing if overwrite=true)
+//  3. Gets both ENV_ADMIN and ENV_READ_ONLY keys from API response
+//  4. Switches to ENV_ADMIN key for setting variables
+//  5. Sets all variables from .env file
+//  6. Outputs both keys for user (ENV_ADMIN for CLI, ENV_READ_ONLY for SDKs)
 func EnvImport(name, description, filePath string, overwrite bool) error {
+	if err := validateEnvironmentName(name); err != nil {
+		return err
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err
@@ -148,14 +175,17 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 	defer file.Close()
 
 	// Parse .env file
+	// Supports: KEY=VALUE, KEY="value", KEY='value', comments (#), empty lines
 	envVars := make(map[string]string)
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
+		// Skip empty lines and comments
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
 
+		// Split on first = to handle values that contain =
 		parts := strings.SplitN(line, "=", 2)
 		if len(parts) != 2 {
 			continue
@@ -164,7 +194,7 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 		key := strings.TrimSpace(parts[0])
 		value := strings.TrimSpace(parts[1])
 
-		// Remove quotes if present
+		// Remove surrounding quotes (both single and double) if present
 		if len(value) >= 2 {
 			if (value[0] == '"' && value[len(value)-1] == '"') ||
 				(value[0] == '\'' && value[len(value)-1] == '\'') {
@@ -198,8 +228,11 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 				for _, env := range envs.Environments {
 					if env.Name == name {
 						// Need to get keys - but we can't retrieve them via API
-						// For now, require user to provide ENV_ADMIN key
-						fmt.Printf("Environment '%s' already exists. Please login with its ENV_ADMIN key to import variables.\n", name)
+						// Provide clear instructions for user
+						fmt.Printf("Environment '%s' already exists. To import variables:\n", name)
+						fmt.Printf("  1. Run: not-env login\n")
+						fmt.Printf("  2. Enter the ENV_ADMIN key for '%s'\n", name)
+						fmt.Printf("  3. Run: not-env env import --name %s --file %s --overwrite\n", name, filePath)
 						return fmt.Errorf("environment exists - login with ENV_ADMIN key first")
 					}
 				}
@@ -227,7 +260,8 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 	var createResult struct {
 		ID   int64 `json:"id"`
 		Keys struct {
-			EnvAdmin string `json:"env_admin"`
+			EnvAdmin    string `json:"env_admin"`
+			EnvReadOnly string `json:"env_read_only"`
 		} `json:"keys"`
 	}
 
@@ -236,6 +270,7 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 	}
 
 	envAdminKey = createResult.Keys.EnvAdmin
+	envReadOnlyKey := createResult.Keys.EnvReadOnly
 
 	// Switch to ENV_ADMIN key for setting variables
 	cl = client.NewClient(cfg.URL, envAdminKey)
@@ -257,7 +292,10 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 
 	fmt.Printf("Environment '%s' created and populated with %d variables!\n", name, len(envVars))
 	fmt.Printf("ENV_ADMIN key: %s\n", envAdminKey)
-	fmt.Println("Save this key securely!")
+	fmt.Printf("ENV_READ_ONLY key: %s\n", envReadOnlyKey)
+	fmt.Println("\nSave these keys securely!")
+	fmt.Println("Use ENV_ADMIN for managing variables (CLI)")
+	fmt.Println("Use ENV_READ_ONLY for applications (SDKs)")
 
 	return nil
 }

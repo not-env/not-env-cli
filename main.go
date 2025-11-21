@@ -1,3 +1,15 @@
+// Package main provides the not-env CLI tool.
+//
+// The CLI is a command-line interface for managing environments and variables
+// stored in the not-env backend. It uses Cobra for command structure and
+// communicates with the backend via HTTPS.
+//
+// Command structure:
+//   - Authentication: login, logout
+//   - Environment management: env create/list/delete/import/show/update/keys/set/clear
+//   - Variable management: var list/get/set/delete
+//
+// Configuration is stored in ~/.not-env/config (created via login command).
 package main
 
 import (
@@ -9,10 +21,13 @@ import (
 	"not-env-cli/internal/commands"
 )
 
+var version = "0.1.0"
+
 var rootCmd = &cobra.Command{
-	Use:   "not-env",
-	Short: "not-env CLI - Manage environment variables",
-	Long:  "not-env is a CLI tool for managing environment variables stored in not-env-backend",
+	Use:     "not-env",
+	Short:   "not-env CLI - Manage environment variables",
+	Long:    "not-env is a CLI tool for managing environment variables stored in not-env-backend",
+	Version: version,
 }
 
 var loginCmd = &cobra.Command{

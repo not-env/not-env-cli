@@ -1,0 +1,106 @@
+name: Build and Release Binaries
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            name: not-env-linux-amd64
+          - os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            name: not-env-linux-arm64
+          - os: macos-latest
+            goos: darwin
+            goarch: amd64
+            name: not-env-darwin-amd64
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            name: not-env-darwin-arm64
+          - os: windows-latest
+            goos: windows
+            goarch: amd64
+            name: not-env-windows-amd64.exe
+          - os: windows-latest
+            goos: windows
+            goarch: arm64
+            name: not-env-windows-arm64.exe
+
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Build binary
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          go build -ldflags "-X main.version=$VERSION" -o ${{ matrix.name }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.name }}
+          path: ${{ matrix.name }}
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/not-env-linux-amd64
+            artifacts/not-env-linux-arm64
+            artifacts/not-env-darwin-amd64
+            artifacts/not-env-darwin-arm64
+            artifacts/not-env-windows-amd64.exe
+            artifacts/not-env-windows-arm64.exe
+          tag_name: ${{ github.ref }}
+          name: Release ${{ steps.version.outputs.version }}
+          draft: false
+          prerelease: false
+

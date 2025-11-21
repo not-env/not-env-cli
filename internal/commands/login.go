@@ -14,15 +14,31 @@ import (
 func Login() error {
 	reader := bufio.NewReader(os.Stdin)
 
-	fmt.Print("Backend URL: ")
-	url, err := reader.ReadString('\n')
+	// Try to load existing config to get last used URL
+	var defaultURL string
+	existingConfig, err := config.Load()
+	if err == nil && existingConfig.URL != "" {
+		defaultURL = existingConfig.URL
+	}
+
+	// Prompt for URL with default
+	if defaultURL != "" {
+		fmt.Printf("Backend URL [%s]: ", defaultURL)
+	} else {
+		fmt.Print("Backend URL: ")
+	}
+	urlInput, err := reader.ReadString('\n')
 	if err != nil {
 		return fmt.Errorf("failed to read URL: %w", err)
 	}
-	url = strings.TrimSpace(url)
+	url := strings.TrimSpace(urlInput)
 
+	// Use default if empty
 	if url == "" {
-		return fmt.Errorf("URL is required")
+		if defaultURL == "" {
+			return fmt.Errorf("URL is required")
+		}
+		url = defaultURL
 	}
 
 	// Ensure URL has protocol

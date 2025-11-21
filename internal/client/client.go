@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // Client is an HTTP client for the not-env API
@@ -20,7 +21,9 @@ func NewClient(baseURL, apiKey string) *Client {
 	return &Client{
 		baseURL: baseURL,
 		apiKey:  apiKey,
-		client:  &http.Client{},
+		client: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}
 }
 

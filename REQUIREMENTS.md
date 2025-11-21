@@ -1,8 +1,36 @@
 # not-env-cli Requirements
 
-This document specifies the functional and non-functional requirements for not-env-cli.
+## Summary
 
-## Functional Requirements
+not-env-cli is a command-line interface for managing not-env environments and variables. Key features:
+
+- **Configuration**: Stored in `~/.not-env/config` (no environment variables required)
+- **Authentication**: Login command saves backend URL and API key
+- **Environment Management**: Create, list, delete environments (APP_ADMIN)
+- **Variable Management**: Set, get, list, delete variables (ENV_ADMIN)
+- **Shell Integration**: Load variables with `eval "$(not-env env set)"`
+- **Import**: Import variables from .env files
+- **Multi-platform**: Linux, macOS, Windows support
+
+## Quick Reference
+
+| Requirement | Specification |
+|-------------|---------------|
+| **Config Location** | `~/.not-env/config` (TOML format) |
+| **Config Permissions** | 0600 (read/write owner only) |
+| **API Authentication** | Bearer token in Authorization header |
+| **HTTP Client** | Standard library `net/http` with 30s timeout |
+| **Command Parser** | Cobra |
+| **Shell Support** | bash, zsh, fish |
+| **Performance Target** | <2 seconds for typical operations |
+
+## Detailed Requirements
+
+See appendices below for complete functional and non-functional requirements.
+
+---
+
+## Appendix A: Functional Requirements
 
 ### FR1: Configuration Management
 
@@ -15,6 +43,7 @@ This document specifies the functional and non-functional requirements for not-e
 
 **FR1.3:** The CLI must provide `login` command that:
 - Prompts for backend URL and API key
+- Defaults backend URL to last used URL if available
 - Validates credentials by making a test request to `/health`
 - Saves configuration to `~/.not-env/config`
 - Creates config directory if it doesn't exist
@@ -38,9 +67,10 @@ This document specifies the functional and non-functional requirements for not-e
 
 **FR3.1:** `not-env env create --name NAME [--description DESC]`
 - Requires APP_ADMIN key
+- Validates environment name (alphanumeric, dashes, underscores only)
 - Creates a new environment
 - Prints environment ID and generated ENV_ADMIN/ENV_READ_ONLY keys
-- Fails if environment name already exists
+- Fails if environment name already exists with helpful error message
 
 **FR3.2:** `not-env env list`
 - Requires APP_ADMIN key
@@ -53,6 +83,7 @@ This document specifies the functional and non-functional requirements for not-e
 - Confirms deletion
 
 **FR3.4:** `not-env env import --name NAME [--description DESC] --file PATH [--overwrite]`
+- Validates environment name (alphanumeric, dashes, underscores only)
 - Reads .env file from PATH
 - Parses KEY=VALUE pairs (supports quoted values)
 - Creates environment if it doesn't exist (or uses existing if --overwrite)
@@ -111,10 +142,11 @@ This document specifies the functional and non-functional requirements for not-e
 ### FR5: API Client
 
 **FR5.1:** The CLI must provide an HTTP client wrapper that:
-- Uses HTTPS for all requests
+- Uses HTTPS for all requests (or HTTP for localhost)
 - Adds Authorization header automatically
 - Handles JSON request/response bodies
 - Provides methods: Get, Post, Put, Patch, Delete
+- Uses 30-second timeout for all requests
 
 **FR5.2:** The client must parse error responses and return meaningful error messages.
 
@@ -162,7 +194,7 @@ This document specifies the functional and non-functional requirements for not-e
 
 **FR8.3:** The CLI must not print any non-export/unset output when used with `eval`.
 
-## Non-Functional Requirements
+## Appendix B: Non-Functional Requirements
 
 ### NFR1: Usability
 
@@ -178,13 +210,13 @@ This document specifies the functional and non-functional requirements for not-e
 
 **NFR2.2:** API keys must never be logged or printed except when explicitly requested (env keys command).
 
-**NFR2.3:** The CLI must use HTTPS for all backend communication.
+**NFR2.3:** The CLI must use HTTPS for all backend communication (or HTTP for localhost).
 
 ### NFR3: Performance
 
 **NFR3.1:** Commands must complete in under 2 seconds for typical operations.
 
-**NFR3.2:** The CLI must handle network timeouts gracefully.
+**NFR3.2:** The CLI must handle network timeouts gracefully (30-second timeout).
 
 ### NFR4: Compatibility
 
@@ -206,7 +238,7 @@ This document specifies the functional and non-functional requirements for not-e
 - `github.com/pelletier/go-toml/v2` for config file parsing
 - Standard library `net/http` for HTTP client
 
-## Implementation Constraints
+## Appendix C: Implementation Constraints
 
 ### IC1: Config File Format
 
@@ -245,7 +277,7 @@ This document specifies the functional and non-functional requirements for not-e
 - Multi-line values (not supported in v1)
 - Variable expansion (not supported in v1)
 
-## Error Handling Specifications
+## Appendix D: Error Handling Specifications
 
 ### EH1: Not Logged In
 
@@ -283,12 +315,12 @@ This document specifies the functional and non-functional requirements for not-e
 
 **When:** Network request fails (timeout, DNS error, etc.).
 
-## Expected Behaviors
+## Appendix E: Expected Behaviors
 
 ### EB1: Login Flow
 
 1. User runs `not-env login`
-2. CLI prompts for URL (defaults to https:// if no protocol)
+2. CLI prompts for URL (defaults to last used URL if available, defaults to https:// if no protocol)
 3. CLI prompts for API key
 4. CLI validates by calling `/health` endpoint
 5. CLI saves config to `~/.not-env/config`
@@ -298,10 +330,11 @@ This document specifies the functional and non-functional requirements for not-e
 
 1. User runs `not-env env create --name dev`
 2. CLI loads config
-3. CLI sends POST `/environments` with APP_ADMIN key
-4. Backend creates environment and generates keys
-5. CLI prints environment ID and both keys
-6. CLI warns user to save keys
+3. CLI validates environment name format
+4. CLI sends POST `/environments` with APP_ADMIN key
+5. Backend creates environment and generates keys
+6. CLI prints environment ID and both keys
+7. CLI warns user to save keys
 
 ### EB3: Shell Integration
 
@@ -319,4 +352,3 @@ This document specifies the functional and non-functional requirements for not-e
 3. CLI sends PUT `/variables/DB_HOST` with ENV_ADMIN key
 4. Backend encrypts and stores value
 5. CLI prints success message
-
