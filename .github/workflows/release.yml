@@ -104,13 +104,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            artifacts/not-env-linux-amd64
-            artifacts/not-env-linux-arm64
-            artifacts/not-env-darwin-amd64
-            artifacts/not-env-darwin-arm64
-            artifacts/not-env-windows-amd64.exe
-            artifacts/not-env-windows-arm64.exe
+          files: artifacts/**/*
           tag_name: ${{ steps.version.outputs.tag_name }}
           name: Release ${{ steps.version.outputs.version }}
           draft: false
