@@ -82,12 +82,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
 
       - name: Extract version from tag
         id: version
+        shell: bash
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
+          TAG_NAME=${GITHUB_REF#refs/tags/}
           echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+          echo "Tag: $TAG_NAME"
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -104,7 +111,7 @@ jobs:
             artifacts/not-env-darwin-arm64
             artifacts/not-env-windows-amd64.exe
             artifacts/not-env-windows-arm64.exe
-          tag_name: ${{ github.ref }}
+          tag_name: ${{ steps.version.outputs.tag_name }}
           name: Release ${{ steps.version.outputs.version }}
           draft: false
           prerelease: false
