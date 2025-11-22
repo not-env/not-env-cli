@@ -61,6 +61,9 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           go build -ldflags "-X main.version=$VERSION" -o ${{ matrix.name }} .
+          if [[ "${{ matrix.goos }}" != "windows" ]]; then
+            chmod +x ${{ matrix.name }}
+          fi
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
