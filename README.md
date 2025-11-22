@@ -31,7 +31,8 @@ The CLI allows you to:
 
 **Linux/macOS (one command):**
 ```bash
-curl -L https://github.com/not-env/not-env-cli/releases/latest/download/not-env-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m) -o /usr/local/bin/not-env && chmod +x /usr/local/bin/not-env
+ARCH=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+curl -L https://github.com/not-env/not-env-cli/releases/latest/download/not-env-$(uname -s | tr '[:upper:]' '[:lower:]')-${ARCH} -o not-env && chmod +x not-env
 ```
 
 **Windows:** Download from [Releases page](https://github.com/not-env/not-env-cli/releases/latest)
