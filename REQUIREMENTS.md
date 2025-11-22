@@ -5,7 +5,7 @@
 not-env-cli is a command-line interface for managing not-env environments and variables. Key features:
 
 - **Configuration**: Stored in `~/.not-env/config` (no environment variables required)
-- **Authentication**: Login command saves backend URL and API key
+- **Authentication**: Login command saves backend URL and API key, Use command switches API key while keeping URL
 - **Environment Management**: Create, list, delete environments (APP_ADMIN)
 - **Variable Management**: Set, get, list, delete variables (ENV_ADMIN)
 - **Shell Integration**: Load variables with `eval "$(not-env env set)"`
@@ -53,7 +53,15 @@ See appendices below for complete functional and non-functional requirements.
 - Removes the configuration file
 - Handles missing file gracefully
 
-**FR1.5:** All commands (except `login` and `logout`) must load configuration and fail with a clear error if not logged in.
+**FR1.5:** The CLI must provide `use` command that:
+- Loads existing configuration to get backend URL
+- Prompts only for API key (no URL prompt)
+- Validates API key by making a test request to `/health`
+- Updates configuration with new API key while keeping existing URL
+- Clears `env_id` since switching to a potentially different environment
+- Fails with clear error if not logged in (no existing config)
+
+**FR1.6:** All commands (except `login`, `logout`, and `use`) must load configuration and fail with a clear error if not logged in.
 
 ### FR2: Authentication
 
@@ -157,7 +165,8 @@ See appendices below for complete functional and non-functional requirements.
 **FR6.1:** The CLI must use cobra for command parsing.
 
 **FR6.2:** Commands must be organized as:
-- `not-env login`
+- `not-env login` - Full login (URL + API key)
+- `not-env use` - Switch API key (keeps URL, only prompts for API key)
 - `not-env logout`
 - `not-env env <subcommand>`
 - `not-env var <subcommand>`
@@ -281,7 +290,7 @@ See appendices below for complete functional and non-functional requirements.
 
 ### EH1: Not Logged In
 
-**Message:** `not logged in. Run 'not-env login' first`
+**Message:** `not logged in. Run 'not-env login' first` (or `not-env use` if already logged in)
 
 **When:** Configuration file doesn't exist or is invalid.
 
@@ -319,12 +328,21 @@ See appendices below for complete functional and non-functional requirements.
 
 ### EB1: Login Flow
 
-1. User runs `not-env login`
+1. User runs `not-env login` (first time or when changing backend URL)
 2. CLI prompts for URL (defaults to last used URL if available, defaults to https:// if no protocol)
 3. CLI prompts for API key
 4. CLI validates by calling `/health` endpoint
 5. CLI saves config to `~/.not-env/config`
 6. CLI prints "Logged in successfully!"
+
+### EB2: Use Flow (Switch API Key)
+
+1. User runs `not-env use` (when switching API keys, backend URL stays the same)
+2. CLI loads existing config to get backend URL
+3. CLI prompts only for API key (no URL prompt)
+4. CLI validates by calling `/health` endpoint
+5. CLI updates config with new API key (keeps existing URL, clears env_id)
+6. CLI prints "Switched to new API key (backend: <URL>)"
 
 ### EB2: Environment Creation
 

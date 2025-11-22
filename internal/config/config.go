@@ -10,9 +10,11 @@ import (
 
 // Config represents the CLI configuration
 type Config struct {
-	URL    string `toml:"url"`
-	APIKey string `toml:"api_key"`
-	EnvID  *int64 `toml:"env_id,omitempty"`
+	URL          string `toml:"url"`
+	APIKey       string `toml:"api_key"`
+	EnvID        *int64 `toml:"env_id,omitempty"`
+	KeyType      string `toml:"key_type"`
+	EnvIDFromKey *int64 `toml:"env_id_from_key"`
 }
 
 var configPath string

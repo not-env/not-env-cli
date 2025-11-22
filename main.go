@@ -5,7 +5,7 @@
 // communicates with the backend via HTTPS.
 //
 // Command structure:
-//   - Authentication: login, logout
+//   - Authentication: login, logout, use
 //   - Environment management: env create/list/delete/import/show/update/keys/set/clear
 //   - Variable management: var list/get/set/delete
 //
@@ -34,7 +34,9 @@ var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "Login to not-env backend",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return commands.Login()
+		url, _ := cmd.Flags().GetString("url")
+		apiKey, _ := cmd.Flags().GetString("api-key")
+		return commands.Login(url, apiKey)
 	},
 }
 
@@ -46,6 +48,15 @@ var logoutCmd = &cobra.Command{
 	},
 }
 
+var useCmd = &cobra.Command{
+	Use:   "use",
+	Short: "Switch to a different API key (keeps current backend URL)",
+	Long:  "Switch to a different API key while keeping the same backend URL. Useful for switching between environments or API key types (APP_ADMIN, ENV_ADMIN, ENV_READ_ONLY).",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return commands.Use()
+	},
+}
+
 var envCmd = &cobra.Command{
 	Use:   "env",
 	Short: "Manage environments",
@@ -53,7 +64,7 @@ var envCmd = &cobra.Command{
 
 var envCreateCmd = &cobra.Command{
 	Use:   "create",
-	Short: "Create a new environment",
+	Short: "Create a new environment (APP_ADMIN)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name, _ := cmd.Flags().GetString("name")
 		description, _ := cmd.Flags().GetString("description")
@@ -68,7 +79,7 @@ var envCreateCmd = &cobra.Command{
 
 var envListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all environments",
+	Short: "List all environments (APP_ADMIN, ENV_ADMIN, ENV_READ_ONLY)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.EnvList()
 	},
@@ -76,7 +87,7 @@ var envListCmd = &cobra.Command{
 
 var envDeleteCmd = &cobra.Command{
 	Use:   "delete",
-	Short: "Delete an environment",
+	Short: "Delete an environment (APP_ADMIN)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		envID, _ := cmd.Flags().GetInt64("id")
 		if envID == 0 {
@@ -88,16 +99,14 @@ var envDeleteCmd = &cobra.Command{
 
 var envImportCmd = &cobra.Command{
 	Use:   "import",
-	Short: "Import variables from a .env file",
+	Short: "Import variables from a .env file (ENV_ADMIN)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name, _ := cmd.Flags().GetString("name")
 		description, _ := cmd.Flags().GetString("description")
 		filePath, _ := cmd.Flags().GetString("file")
 		overwrite, _ := cmd.Flags().GetBool("overwrite")
 
-		if name == "" {
-			return fmt.Errorf("--name is required")
-		}
+		// Name validation is handled in EnvImport based on key type
 		if filePath == "" {
 			return fmt.Errorf("--file is required")
 		}
@@ -108,7 +117,7 @@ var envImportCmd = &cobra.Command{
 
 var envShowCmd = &cobra.Command{
 	Use:   "show",
-	Short: "Show current environment metadata",
+	Short: "Show current environment metadata (APP_ADMIN, ENV_ADMIN, ENV_READ_ONLY)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.EnvShow()
 	},
@@ -116,7 +125,7 @@ var envShowCmd = &cobra.Command{
 
 var envUpdateCmd = &cobra.Command{
 	Use:   "update",
-	Short: "Update environment metadata",
+	Short: "Update environment metadata (APP_ADMIN, ENV_ADMIN)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name, _ := cmd.Flags().GetString("name")
 		description, _ := cmd.Flags().GetString("description")
@@ -139,7 +148,7 @@ var envUpdateCmd = &cobra.Command{
 
 var envKeysCmd = &cobra.Command{
 	Use:   "keys",
-	Short: "Show environment API keys",
+	Short: "Show environment API keys (ENV_ADMIN)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.EnvKeys()
 	},
@@ -147,7 +156,7 @@ var envKeysCmd = &cobra.Command{
 
 var envSetCmd = &cobra.Command{
 	Use:   "set",
-	Short: "Print export commands for all variables",
+	Short: "Print export commands for all variables (ENV_ADMIN, ENV_READ_ONLY)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.EnvSet()
 	},
@@ -155,7 +164,7 @@ var envSetCmd = &cobra.Command{
 
 var envClearCmd = &cobra.Command{
 	Use:   "clear",
-	Short: "Print unset commands for all variables",
+	Short: "Print unset commands for all variables (ENV_ADMIN, ENV_READ_ONLY)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.EnvClear()
 	},
@@ -168,7 +177,7 @@ var varCmd = &cobra.Command{
 
 var varListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List all variables",
+	Short: "List all variables (ENV_ADMIN, ENV_READ_ONLY)",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.VarList()
 	},
@@ -176,7 +185,7 @@ var varListCmd = &cobra.Command{
 
 var varGetCmd = &cobra.Command{
 	Use:   "get",
-	Short: "Get a variable value",
+	Short: "Get a variable value (ENV_ADMIN, ENV_READ_ONLY)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.VarGet(args[0])
@@ -185,7 +194,7 @@ var varGetCmd = &cobra.Command{
 
 var varSetCmd = &cobra.Command{
 	Use:   "set",
-	Short: "Set a variable value",
+	Short: "Set a variable value (ENV_ADMIN)",
 	Args:  cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.VarSet(args[0], args[1])
@@ -194,7 +203,7 @@ var varSetCmd = &cobra.Command{
 
 var varDeleteCmd = &cobra.Command{
 	Use:   "delete",
-	Short: "Delete a variable",
+	Short: "Delete a variable (ENV_ADMIN)",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return commands.VarDelete(args[0])
@@ -202,9 +211,14 @@ var varDeleteCmd = &cobra.Command{
 }
 
 func init() {
-	// Login/logout
+	// Login/logout/use
 	rootCmd.AddCommand(loginCmd)
 	rootCmd.AddCommand(logoutCmd)
+	rootCmd.AddCommand(useCmd)
+
+	// Login command flags
+	loginCmd.Flags().String("url", "", "Backend URL (optional, will prompt if not provided)")
+	loginCmd.Flags().String("api-key", "", "API key (optional, will prompt if not provided)")
 
 	// Environment commands
 	rootCmd.AddCommand(envCmd)

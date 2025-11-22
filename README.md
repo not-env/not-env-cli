@@ -7,6 +7,7 @@ Command-line interface for not-env, a self-hosted environment variable managemen
 | Task | Command |
 |------|---------|
 | **Login** | `not-env login` |
+| **Switch API key** | `not-env use` |
 | **Create environment** | `not-env env create --name dev` |
 | **Import .env file** | `not-env env import --name dev --file .env` |
 | **List environments** | `not-env env list` |
@@ -53,6 +54,8 @@ not-env login
 # Enter API key (APP_ADMIN for creating environments)
 ```
 
+**Tip:** After initial login, use `not-env use` to quickly switch between API keys without re-entering the URL.
+
 ### 2. Import .env File
 ```bash
 # Create a sample .env file (or use your existing one)
@@ -80,10 +83,12 @@ not-env env import --name dev --file .env
 ### Manual Variable Setting (Alternative)
 ```bash
 # After creating environment with 'not-env env create --name dev'
-not-env login  # Use ENV_ADMIN key
+not-env use  # Switch to ENV_ADMIN key (faster than login)
 not-env var set DB_HOST "localhost"
 not-env var set DB_PORT "5432"
 ```
+
+**Note:** Use `not-env use` instead of `not-env login` when switching API keys - it's faster and keeps your backend URL.
 
 ### Load Variables into Shell
 ```bash
@@ -100,12 +105,13 @@ not-env var list
 ### Authentication
 
 - `not-env login` - Login to backend (prompts for URL and API key)
+- `not-env use` - Switch to a different API key (keeps current backend URL, only prompts for API key)
 - `not-env logout` - Clear saved credentials
 
 ### Environment Management
 
 - `not-env env create --name NAME [--description DESC]` - Create environment (APP_ADMIN)
-- `not-env env list` - List all environments (APP_ADMIN)
+- `not-env env list` - List environments (APP_ADMIN sees all, ENV_ADMIN/ENV_READ_ONLY see their own)
 - `not-env env delete --id ENV_ID` - Delete environment (APP_ADMIN)
 - `not-env env import --name NAME --file PATH [--overwrite]` - Import from .env file
 - `not-env env show` - Show current environment metadata
@@ -138,7 +144,8 @@ api_key = "your-api-key-here"
 - Use ENV_READ_ONLY for read-only access
 
 **Not logged in:**
-- Run `not-env login` to authenticate
+- Run `not-env login` to authenticate (first time or when changing backend URL)
+- Run `not-env use` to switch API keys (when backend URL stays the same)
 
 **Variables not loading in shell:**
 - Use `eval "$(not-env env set)"` with quotes

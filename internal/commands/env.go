@@ -87,6 +87,44 @@ func EnvList() error {
 
 	cl := client.NewClient(cfg.URL, cfg.APIKey)
 
+	// Validate key type
+	if cfg.KeyType != "APP_ADMIN" && cfg.KeyType != "ENV_ADMIN" && cfg.KeyType != "ENV_READ_ONLY" {
+		return fmt.Errorf("invalid key type: %s", cfg.KeyType)
+	}
+
+	// For ENV_ADMIN/ENV_READ_ONLY, use /environment endpoint
+	if cfg.KeyType == "ENV_ADMIN" || cfg.KeyType == "ENV_READ_ONLY" {
+		resp, err := cl.Get("/environment")
+		if err != nil {
+			return err
+		}
+		if resp.StatusCode != 200 {
+			return client.ParseResponse(resp, nil)
+		}
+
+		var env struct {
+			ID             int64  `json:"id"`
+			OrganizationID int64  `json:"organization_id"`
+			Name           string `json:"name"`
+			Description    string `json:"description"`
+			CreatedAt      string `json:"created_at"`
+			UpdatedAt      string `json:"updated_at"`
+		}
+
+		if err := client.ParseResponse(resp, &env); err != nil {
+			return err
+		}
+
+		fmt.Println("Environments:")
+		fmt.Printf("  ID: %d, Name: %s", env.ID, env.Name)
+		if env.Description != "" {
+			fmt.Printf(", Description: %s", env.Description)
+		}
+		fmt.Println()
+		return nil
+	}
+
+	// APP_ADMIN: use /environments endpoint
 	resp, err := cl.Get("/environments")
 	if err != nil {
 		return err
@@ -153,18 +191,28 @@ func EnvDelete(envID int64) error {
 // EnvImport imports variables from a .env file.
 // Flow:
 //  1. Parses .env file into key-value pairs
-//  2. Creates environment via API (or uses existing if overwrite=true)
-//  3. Gets both ENV_ADMIN and ENV_READ_ONLY keys from API response
-//  4. Switches to ENV_ADMIN key for setting variables
-//  5. Sets all variables from .env file
-//  6. Outputs both keys for user (ENV_ADMIN for CLI, ENV_READ_ONLY for SDKs)
+//  2. Creates environment via API (or uses existing if overwrite=true) - APP_ADMIN only
+//  3. Gets both ENV_ADMIN and ENV_READ_ONLY keys from API response - APP_ADMIN only
+//  4. Sets all variables from .env file
+//  5. Outputs both keys for user (ENV_ADMIN for CLI, ENV_READ_ONLY for SDKs) - APP_ADMIN only
+// For ENV_ADMIN: imports directly into their environment (no creation needed)
 func EnvImport(name, description, filePath string, overwrite bool) error {
-	if err := validateEnvironmentName(name); err != nil {
-		return err
-	}
 	cfg, err := config.Load()
 	if err != nil {
 		return err
+	}
+
+	// Validate key type
+	if cfg.KeyType != "APP_ADMIN" && cfg.KeyType != "ENV_ADMIN" {
+		return fmt.Errorf("invalid key type: %s (only APP_ADMIN and ENV_ADMIN can import)", cfg.KeyType)
+	}
+
+	// For ENV_ADMIN, name is optional (ignored)
+	// For APP_ADMIN, name is required
+	if cfg.KeyType == "APP_ADMIN" {
+		if err := validateEnvironmentName(name); err != nil {
+			return err
+		}
 	}
 
 	// Read .env file
@@ -209,9 +257,34 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Create environment (or use existing if overwrite)
 	cl := client.NewClient(cfg.URL, cfg.APIKey)
 
+	// If ENV_ADMIN, import directly into their environment (skip creation)
+	if cfg.KeyType == "ENV_ADMIN" {
+		if cfg.EnvIDFromKey == nil {
+			return fmt.Errorf("environment ID not found in API key context")
+		}
+
+		// Set all variables directly (no environment creation needed)
+		for key, value := range envVars {
+			setResp, err := cl.Put(fmt.Sprintf("/variables/%s", key), map[string]interface{}{
+				"value": value,
+			})
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: Failed to set %s: %v\n", key, err)
+				continue
+			}
+			setResp.Body.Close()
+			if setResp.StatusCode != 204 {
+				fmt.Fprintf(os.Stderr, "Warning: Failed to set %s (status %d)\n", key, setResp.StatusCode)
+			}
+		}
+
+		fmt.Printf("Imported %d variables into environment!\n", len(envVars))
+		return nil
+	}
+
+	// APP_ADMIN: create environment and import (existing logic)
 	var envAdminKey string
 
 	if overwrite {
@@ -230,10 +303,10 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 						// Need to get keys - but we can't retrieve them via API
 						// Provide clear instructions for user
 						fmt.Printf("Environment '%s' already exists. To import variables:\n", name)
-						fmt.Printf("  1. Run: not-env login\n")
+						fmt.Printf("  1. Run: not-env use\n")
 						fmt.Printf("  2. Enter the ENV_ADMIN key for '%s'\n", name)
 						fmt.Printf("  3. Run: not-env env import --name %s --file %s --overwrite\n", name, filePath)
-						return fmt.Errorf("environment exists - login with ENV_ADMIN key first")
+						return fmt.Errorf("environment exists - use ENV_ADMIN key to import")
 					}
 				}
 			}
@@ -281,12 +354,12 @@ func EnvImport(name, description, filePath string, overwrite bool) error {
 			"value": value,
 		})
 		if err != nil {
-			fmt.Printf("Warning: Failed to set %s: %v\n", key, err)
+			fmt.Fprintf(os.Stderr, "Warning: Failed to set %s: %v\n", key, err)
 			continue
 		}
 		setResp.Body.Close()
 		if setResp.StatusCode != 204 {
-			fmt.Printf("Warning: Failed to set %s (status %d)\n", key, setResp.StatusCode)
+			fmt.Fprintf(os.Stderr, "Warning: Failed to set %s (status %d)\n", key, setResp.StatusCode)
 		}
 	}
 
